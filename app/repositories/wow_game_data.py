@@ -1,9 +1,10 @@
 import requests
-#import os
 import re
 import json
 import time
-#from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WowGameData:
     API_REGION = 'https://tw.api.blizzard.com'
@@ -11,62 +12,68 @@ class WowGameData:
     AUCTION_DATA_URI = '/data/wow/connected-realm/{}/auctions'
     COMMODITIES_DATA_URI = '/data/wow/auctions/commodities'
     ITEM_DATA_URI = '/data/wow/item/{}'
-    
-    #def __init__(self):
-        #self.access_token = BattleNet.getToken()
-        
+
+    def _get(url, headers, params):
+        try:
+            r = requests.get(url, headers=headers, params=params, timeout=30)
+        except requests.exceptions.RequestException as e:
+            logger.error("API 請求失敗 %s：%s", url, e)
+            return None
+        if r.status_code != 200:
+            logger.error("API 回應非 200 %s：%s", url, r.status_code)
+            return None
+        try:
+            return r.json()
+        except requests.exceptions.JSONDecodeError as e:
+            logger.error("API 回應 JSON 解析失敗 %s：%s", url, e)
+            return None
+
     def fetchRealmsData(access_token):
-        data = None
         headers = {'Authorization': f'Bearer {access_token}'}
-        get_params = {'namespace':'dynamic-tw'}
-        r = requests.get(__class__.API_REGION+__class__.REAMLS_DATA_URI, headers=headers, params=get_params)
-        if r.status_code == 200:
-            data = r.json()
-        return data
-    
+        params = {'namespace': 'dynamic-tw'}
+        return WowGameData._get(WowGameData.API_REGION + WowGameData.REAMLS_DATA_URI, headers, params)
+
     def fetchRealmsList(access_token):
-        realms_data = __class__.fetchRealmsData(access_token)
+        realms_data = WowGameData.fetchRealmsData(access_token)
+        if not realms_data or 'connected_realms' not in realms_data:
+            logger.error("fetchRealmsList：無法取得 connected_realms 資料")
+            return {}
+
         realm_sets = {}
-        for record in realms_data['connected_realms']:        
-            url = record['href']
-            realm_id = re.findall(r'\d+', url)[0]
-            headers = {'Authorization': f'Bearer {access_token}'}
-            get_params = {'namespace':'dynamic-tw'}
-            r = requests.get(url, headers=headers, params=get_params)
-            if r.status_code == 200:
-                data = r.json()
-            realm_set = []
-            for realm in data['realms']:
-                realm_set.append(realm['name']['zh_TW'])
-            realm_sets[realm_id] = realm_set
+        headers = {'Authorization': f'Bearer {access_token}'}
+        params = {'namespace': 'dynamic-tw'}
+        for record in realms_data['connected_realms']:
+            url = record.get('href')
+            if not url:
+                continue
+            realm_id = re.findall(r'\d+', url)
+            if not realm_id:
+                continue
+            data = WowGameData._get(url, headers, params)
+            if not data or 'realms' not in data:
+                continue
+            realm_sets[realm_id[0]] = [r['name']['zh_TW'] for r in data['realms']]
+
         with open('../data/realm_sets.json', 'w') as f:
             json.dump(realm_sets, f)
         return realm_sets
 
     def fetchAuctionData(realm_id, access_token):
-        data = None  
         headers = {'Authorization': f'Bearer {access_token}'}
-        get_params = {'namespace':'dynamic-tw','locale':'zh_TW'}
-        r = requests.get(__class__.API_REGION+__class__.AUCTION_DATA_URI.format(realm_id), headers=headers, params=get_params)
-        if r.status_code == 200:
-            data = r.json()
-        return data
-    
+        params = {'namespace': 'dynamic-tw', 'locale': 'zh_TW'}
+        url = WowGameData.API_REGION + WowGameData.AUCTION_DATA_URI.format(realm_id)
+        return WowGameData._get(url, headers, params)
+
     def fetchCommoditiesData(access_token):
-        data = None
         headers = {'Authorization': f'Bearer {access_token}'}
-        get_params = {'namespace':'dynamic-tw','locale':'zh_TW'}
-        r = requests.get(__class__.API_REGION+__class__.COMMODITIES_DATA_URI, headers=headers, params=get_params)
-        if r.status_code == 200:
-            data = r.json()
-        return data
-    
+        params = {'namespace': 'dynamic-tw', 'locale': 'zh_TW'}
+        url = WowGameData.API_REGION + WowGameData.COMMODITIES_DATA_URI
+        return WowGameData._get(url, headers, params)
+
     def fetchItemInfo(item_id, access_token):
-        data = None
         headers = {'Authorization': f'Bearer {access_token}'}
-        get_params = {'namespace':'static-tw','locale':'zh_TW'}
-        r = requests.get(__class__.API_REGION+__class__.ITEM_DATA_URI.format(item_id), headers=headers, params=get_params)
-        if r.status_code == 200:
-            data = r.json()
+        params = {'namespace': 'static-tw', 'locale': 'zh_TW'}
+        url = WowGameData.API_REGION + WowGameData.ITEM_DATA_URI.format(item_id)
+        data = WowGameData._get(url, headers, params)
         time.sleep(1)
         return data

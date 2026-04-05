@@ -15,7 +15,12 @@ def setup_logging():
 
 if __name__ == '__main__':
     setup_logging()
-    analyzer = AuctionController()
+    logger = logging.getLogger(__name__)
+    try:
+        analyzer = AuctionController()
+    except RuntimeError as e:
+        logger.critical("初始化失敗，程式終止：%s", e)
+        raise SystemExit(1)
     analyzer.fetch_commodities_data()
     analyzer.update_statics()
     analyzer.archive_old_files()

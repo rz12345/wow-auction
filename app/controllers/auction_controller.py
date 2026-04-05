@@ -21,20 +21,40 @@ class AuctionController:
     SETTINGS_PATH = 'app/configs/settings.json'
 
     def __init__(self):
-        with open(self.SETTINGS_PATH, 'r') as f:
-            cfg = json.load(f)
-        self.item_id_threshold   = cfg['item_id_threshold']
+        try:
+            with open(self.SETTINGS_PATH, 'r') as f:
+                cfg = json.load(f)
+        except FileNotFoundError:
+            raise RuntimeError(f"找不到設定檔：{self.SETTINGS_PATH}")
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"設定檔格式錯誤：{e}")
+
+        required_keys = [
+            'item_id_threshold', 'tracked_item_classes', 'custom_tracked_items',
+            'history_days', 'price_compare_days', 'price_drop_threshold',
+            'min_gold_threshold', 'notify_batch_size',
+        ]
+        missing = [k for k in required_keys if k not in cfg]
+        if missing:
+            raise RuntimeError(f"設定檔缺少必要欄位：{missing}")
+
+        self.item_id_threshold    = cfg['item_id_threshold']
         self.tracked_item_classes = cfg['tracked_item_classes']
         self.custom_tracked_items = cfg['custom_tracked_items']
-        self.history_days        = cfg['history_days']
-        self.price_compare_days  = cfg['price_compare_days']
+        self.history_days         = cfg['history_days']
+        self.price_compare_days   = cfg['price_compare_days']
         self.price_drop_threshold = cfg['price_drop_threshold']
-        self.min_gold_threshold  = cfg['min_gold_threshold']
-        self.notify_batch_size   = cfg['notify_batch_size']
+        self.min_gold_threshold   = cfg['min_gold_threshold']
+        self.notify_batch_size    = cfg['notify_batch_size']
 
         self.access_token = BattleNet.getToken()
+        if not self.access_token:
+            raise RuntimeError("無法取得 Battle.net access token，請確認憑證設定")
+
         self.timestamp = int(datetime.now().timestamp())
         self.data = WowGameData.fetchCommoditiesData(self.access_token)
+        if self.data is None:
+            raise RuntimeError("無法取得拍賣場資料，請確認 Battle.net API 狀態")
 
     def get_item_list(self):
         """
@@ -104,10 +124,15 @@ class AuctionController:
                 files_for_date = date_file_mapping[date]
 
                 for file in files_for_date:
-                    with open(directory + file) as f:
-                        json_data = json.load(f)
+                    try:
+                        with open(directory + file) as f:
+                            json_data = json.load(f)
+                    except (OSError, json.JSONDecodeError) as e:
+                        logger.error("讀取快照失敗，跳過 %s：%s", file, e)
+                        continue
 
-                    if json_data is None:
+                    if not json_data or 'auctions' not in json_data:
+                        logger.warning("快照格式不符，跳過 %s", file)
                         continue
 
                     df_new = pd.json_normalize(json_data['auctions'])[['id', 'quantity', 'unit_price', 'time_left', 'item.id']]
@@ -146,16 +171,23 @@ class AuctionController:
         获取并处理商品数据
         将数据保存到本地，更新物品列表，计算统计信息，并检查便宜商品
         """
-        filename = f'auction-records/{datetime.today().strftime("%Y-%m-%d")}/commodities-{self.timestamp}.json'
-        if self.data is not None:
-            data_dir = 'data/auction/'
-            Path(data_dir).mkdir(parents=True, exist_ok=True)
-            with open(f'{data_dir}commodities-{self.timestamp}.json', 'w') as json_file:
+        data_dir = 'data/auction/'
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
+        snapshot_path = f'{data_dir}commodities-{self.timestamp}.json'
+        try:
+            with open(snapshot_path, 'w') as json_file:
                 json.dump(self.data, json_file)
-            
-            self.update_item_list()
-            
-            df = pd.json_normalize(self.data['auctions'])[['id', 'quantity', 'unit_price', 'time_left', 'item.id']]
+        except OSError as e:
+            logger.error("快照寫入失敗 %s：%s", snapshot_path, e)
+            return
+
+        if 'auctions' not in self.data:
+            logger.error("拍賣資料缺少 auctions 欄位，終止處理")
+            return
+
+        self.update_item_list()
+
+        df = pd.json_normalize(self.data['auctions'])[['id', 'quantity', 'unit_price', 'time_left', 'item.id']]
             date = datetime.now().strftime('%Y-%m-%d')
             df_stat = self.statics_auction_records(df, date)
             
@@ -197,19 +229,24 @@ class AuctionController:
             for item_id in list_difference:
                 item_data = self.fetch_item_info(item_id)
                 if item_data is None:
+                    logger.warning("取得物品資料失敗，跳過 item_id=%s", item_id)
                     continue
-                list_data = [
-                    item_data['id'],
-                    item_data['name'],
-                    item_data['level'],
-                    item_data['required_level'],
-                    item_data['quality']['type'],
-                    item_data['quality']['name'],
-                    item_data['item_class']['name'],
-                    item_data['item_class']['id'],
-                    item_data['item_subclass']['name'],
-                    item_data['item_subclass']['id'],
-                ]
+                try:
+                    list_data = [
+                        item_data['id'],
+                        item_data['name'],
+                        item_data['level'],
+                        item_data['required_level'],
+                        item_data['quality']['type'],
+                        item_data['quality']['name'],
+                        item_data['item_class']['name'],
+                        item_data['item_class']['id'],
+                        item_data['item_subclass']['name'],
+                        item_data['item_subclass']['id'],
+                    ]
+                except KeyError as e:
+                    logger.warning("物品資料缺少欄位 %s，跳過 item_id=%s", e, item_id)
+                    continue
                 cur.execute("INSERT INTO items VALUES(?,?,?,?,?,?,?,?,?,?)", list_data)
                 conn.commit()            
             
@@ -367,20 +404,25 @@ class AuctionController:
             if current_chunk:
                 chunks.append(current_chunk)
             
-            # 發送每個塊
             status_codes = []
             for chunk in chunks:
-                payload = {"content": chunk}
-                r = requests.post(webhook_url, headers=headers, json=payload)
-                status_codes.append(r.status_code)
-            
-            # 返回所有狀態碼列表
+                try:
+                    r = requests.post(webhook_url, headers=headers, json={"content": chunk}, timeout=10)
+                    status_codes.append(r.status_code)
+                    if r.status_code not in (200, 204):
+                        logger.error("Discord 發送失敗，狀態碼：%s", r.status_code)
+                except requests.exceptions.RequestException as e:
+                    logger.error("Discord 請求例外：%s", e)
             return status_codes
         else:
-            # 對於短消息，直接發送
-            payload = {"content": msg}
-            r = requests.post(webhook_url, headers=headers, json=payload)
-            return r.status_code
+            try:
+                r = requests.post(webhook_url, headers=headers, json={"content": msg}, timeout=10)
+                if r.status_code not in (200, 204):
+                    logger.error("Discord 發送失敗，狀態碼：%s", r.status_code)
+                return r.status_code
+            except requests.exceptions.RequestException as e:
+                logger.error("Discord 請求例外：%s", e)
+                return None
 
     def archive_old_files(self):
         """
@@ -455,9 +497,13 @@ class AuctionController:
 
         status_codes = []
         for chunk in chunks:
-            payload = {"chat_id": chat_id, "text": chunk}
-            r = requests.post(url, headers=headers, json=payload)
-            status_codes.append(r.status_code)
+            try:
+                r = requests.post(url, headers=headers, json={"chat_id": chat_id, "text": chunk}, timeout=10)
+                status_codes.append(r.status_code)
+                if r.status_code != 200:
+                    logger.error("Telegram 發送失敗，狀態碼：%s，回應：%s", r.status_code, r.text)
+            except requests.exceptions.RequestException as e:
+                logger.error("Telegram 請求例外：%s", e)
         return status_codes
 
     def query_item_quality(self, item_id, item_name):
