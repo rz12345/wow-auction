@@ -13,14 +13,17 @@ from app.controllers.auction_controller import AuctionController
 # ── 假資料 ────────────────────────────────────────────────────────────────────
 
 SETTINGS = {
-    'item_id_threshold':    238365,
-    'tracked_item_classes': ['交易技能', '物品附魔', '寶石', '消耗品'],
-    'custom_tracked_items': [123918],
     'history_days':         28,
     'price_compare_days':   7,
     'price_drop_threshold': -10,
     'min_gold_threshold':   10000,
     'notify_batch_size':    20,
+}
+
+TRACKED_ITEMS = {
+    'item_id_threshold':    238365,
+    'tracked_item_classes': ['交易技能', '物品附魔', '寶石', '消耗品'],
+    'custom_tracked_items': [123918],
 }
 
 FAKE_AUCTIONS = [
@@ -88,6 +91,9 @@ def tmp_env(tmp_path, monkeypatch):
     settings_file = tmp_path / 'settings.json'
     settings_file.write_text(json.dumps(SETTINGS), encoding='utf-8')
 
+    tracked_items_file = tmp_path / 'tracked_items.json'
+    tracked_items_file.write_text(json.dumps(TRACKED_ITEMS), encoding='utf-8')
+
     db_path = str(tmp_path / 'test.sqlite')
     create_schema(db_path)
 
@@ -100,6 +106,7 @@ def tmp_env(tmp_path, monkeypatch):
     telegram_file.write_text(json.dumps({'bot_token': 'fake_bot_token', 'chat_id': '12345'}), encoding='utf-8')
 
     monkeypatch.setattr(AuctionController, 'SETTINGS_PATH', str(settings_file))
+    monkeypatch.setattr(AuctionController, 'TRACKED_ITEMS_PATH', str(tracked_items_file))
     monkeypatch.setattr(AuctionController, 'DB_PATH', db_path)
     monkeypatch.setattr(AuctionController, 'DISCORD_CRED_PATH', str(discord_file))
     monkeypatch.setattr(AuctionController, 'TELEGRAM_CRED_PATH', str(telegram_file))

@@ -5,9 +5,10 @@ data/item/*.json
 data/*.json
 foo/
 
-# 憑證與機密設定（settings.json 除外）
-app/configs/
+# 憑證與機密設定（settings.json / tracked_items.json 除外）
+app/configs/*
 !app/configs/settings.json
+!app/configs/tracked_items.json
 
 # 資料庫與封存
 data/db.sqlite

@@ -1,7 +1,7 @@
 from app.services.battle_net import BattleNet
 from app.services.storage_firebase import StorageFirebase
 from app.repositories.wow_game_data import WowGameData
-from app.helpers.validators import validate_settings, filter_valid_auction_records
+from app.helpers.validators import validate_settings, validate_tracked_items, filter_valid_auction_records
 import re
 import sqlite3
 import pandas as pd
@@ -20,6 +20,7 @@ class AuctionController:
     DISCORD_CRED_PATH = 'app/configs/discord-webhook.json'
     TELEGRAM_CRED_PATH = 'app/configs/telegram-bot.json'
     SETTINGS_PATH = 'app/configs/settings.json'
+    TRACKED_ITEMS_PATH = 'app/configs/tracked_items.json'
 
     def __init__(self):
         try:
@@ -34,14 +35,27 @@ class AuctionController:
         if errors:
             raise RuntimeError(f"設定檔驗證失敗：{errors}")
 
-        self.item_id_threshold    = cfg['item_id_threshold']
-        self.tracked_item_classes = cfg['tracked_item_classes']
-        self.custom_tracked_items = cfg['custom_tracked_items']
         self.history_days         = cfg['history_days']
         self.price_compare_days   = cfg['price_compare_days']
         self.price_drop_threshold = cfg['price_drop_threshold']
         self.min_gold_threshold   = cfg['min_gold_threshold']
         self.notify_batch_size    = cfg['notify_batch_size']
+
+        try:
+            with open(self.TRACKED_ITEMS_PATH, 'r', encoding='utf-8') as f:
+                tracked = json.load(f)
+        except FileNotFoundError:
+            raise RuntimeError(f"找不到追蹤物品設定檔：{self.TRACKED_ITEMS_PATH}")
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"追蹤物品設定檔格式錯誤：{e}")
+
+        errors = validate_tracked_items(tracked)
+        if errors:
+            raise RuntimeError(f"追蹤物品設定檔驗證失敗：{errors}")
+
+        self.item_id_threshold    = tracked['item_id_threshold']
+        self.tracked_item_classes = tracked['tracked_item_classes']
+        self.custom_tracked_items = tracked['custom_tracked_items']
 
         self.access_token = BattleNet.getToken()
         if not self.access_token:

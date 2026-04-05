@@ -8,10 +8,11 @@ import requests
 
 from app.helpers.validators import (
     validate_settings,
+    validate_tracked_items,
     validate_auction_record,
     filter_valid_auction_records,
 )
-from tests.conftest import SETTINGS, insert_item
+from tests.conftest import SETTINGS, TRACKED_ITEMS, insert_item
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -33,10 +34,6 @@ class TestValidateSettings:
         errors = validate_settings(dict(SETTINGS, history_days='oops'))
         assert any('history_days' in e for e in errors)
 
-    def test_wrong_type_list_reported(self):
-        errors = validate_settings(dict(SETTINGS, tracked_item_classes='not_a_list'))
-        assert any('tracked_item_classes' in e for e in errors)
-
     def test_out_of_range_history_days(self):
         errors = validate_settings(dict(SETTINGS, history_days=0))
         assert any('history_days' in e for e in errors)
@@ -45,17 +42,40 @@ class TestValidateSettings:
         errors = validate_settings(dict(SETTINGS, price_drop_threshold=5))
         assert any('price_drop_threshold' in e for e in errors)
 
+
+class TestValidateTrackedItems:
+
+    def test_valid_tracked_items_passes(self):
+        assert validate_tracked_items(TRACKED_ITEMS) == []
+
+    def test_missing_item_id_threshold_reported(self):
+        cfg = dict(TRACKED_ITEMS)
+        del cfg['item_id_threshold']
+        errors = validate_tracked_items(cfg)
+        assert any('item_id_threshold' in e for e in errors)
+
+    def test_wrong_type_threshold_reported(self):
+        errors = validate_tracked_items(dict(TRACKED_ITEMS, item_id_threshold='abc'))
+        assert any('item_id_threshold' in e for e in errors)
+
+    def test_threshold_below_min_reported(self):
+        errors = validate_tracked_items(dict(TRACKED_ITEMS, item_id_threshold=0))
+        assert any('item_id_threshold' in e for e in errors)
+
     def test_empty_tracked_classes_reported(self):
-        errors = validate_settings(dict(SETTINGS, tracked_item_classes=[]))
+        errors = validate_tracked_items(dict(TRACKED_ITEMS, tracked_item_classes=[]))
         assert any('tracked_item_classes' in e for e in errors)
 
     def test_non_string_class_reported(self):
-        errors = validate_settings(dict(SETTINGS, tracked_item_classes=[1, 2]))
+        errors = validate_tracked_items(dict(TRACKED_ITEMS, tracked_item_classes=[1, 2]))
         assert any('tracked_item_classes' in e for e in errors)
 
     def test_non_int_custom_items_reported(self):
-        errors = validate_settings(dict(SETTINGS, custom_tracked_items=['abc']))
+        errors = validate_tracked_items(dict(TRACKED_ITEMS, custom_tracked_items=['abc']))
         assert any('custom_tracked_items' in e for e in errors)
+
+    def test_empty_custom_items_passes(self):
+        assert validate_tracked_items(dict(TRACKED_ITEMS, custom_tracked_items=[])) == []
 
 
 class TestValidateAuctionRecord:

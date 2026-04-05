@@ -9,7 +9,7 @@ import pytest
 
 from app.controllers.auction_controller import AuctionController
 from tests.conftest import (
-    FAKE_COMMODITIES, FAKE_AUCTIONS, SETTINGS,
+    FAKE_COMMODITIES, FAKE_AUCTIONS, SETTINGS, TRACKED_ITEMS,
     create_schema, insert_item, insert_history, insert_realtime,
 )
 
@@ -61,7 +61,7 @@ class TestInit:
 
     def test_settings_loaded(self, controller):
         ctrl, db, _ = controller
-        assert ctrl.item_id_threshold == SETTINGS['item_id_threshold']
+        assert ctrl.item_id_threshold == TRACKED_ITEMS['item_id_threshold']
         assert ctrl.history_days == SETTINGS['history_days']
         assert ctrl.price_drop_threshold == SETTINGS['price_drop_threshold']
         assert ctrl.access_token == 'fake_token'

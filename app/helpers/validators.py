@@ -2,12 +2,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# ── settings.json 驗證 ────────────────────────────────────────────────────────
+# ── settings.json 驗證（操作參數） ────────────────────────────────────────────
 
 _SETTINGS_SCHEMA = {
-    'item_id_threshold':    (int,),
-    'tracked_item_classes': (list,),
-    'custom_tracked_items': (list,),
     'history_days':         (int,),
     'price_compare_days':   (int,),
     'price_drop_threshold': (int, float),
@@ -16,7 +13,6 @@ _SETTINGS_SCHEMA = {
 }
 
 _SETTINGS_RANGES = {
-    'item_id_threshold':    (1, None),
     'history_days':         (1, 365),
     'price_compare_days':   (1, 365),
     'price_drop_threshold': (None, 0),
@@ -28,14 +24,12 @@ _SETTINGS_RANGES = {
 def validate_settings(cfg: dict) -> list[str]:
     """驗證 settings.json 欄位型別與數值範圍，回傳錯誤訊息清單（空表示通過）。"""
     errors = []
-
     for key, types in _SETTINGS_SCHEMA.items():
         if key not in cfg:
             errors.append(f"缺少必要欄位：{key}")
             continue
         if not isinstance(cfg[key], types):
             errors.append(f"{key} 型別錯誤，應為 {types}，實際為 {type(cfg[key])}")
-
     for key, (lo, hi) in _SETTINGS_RANGES.items():
         if key not in cfg or not isinstance(cfg[key], (int, float)):
             continue
@@ -44,17 +38,45 @@ def validate_settings(cfg: dict) -> list[str]:
             errors.append(f"{key} 值 {val} 小於最小值 {lo}")
         if hi is not None and val > hi:
             errors.append(f"{key} 值 {val} 大於最大值 {hi}")
+    return errors
 
+
+# ── tracked_items.json 驗證（物品追蹤設定） ───────────────────────────────────
+
+_TRACKED_SCHEMA = {
+    'item_id_threshold':    (int,),
+    'tracked_item_classes': (list,),
+    'custom_tracked_items': (list,),
+}
+
+_TRACKED_RANGES = {
+    'item_id_threshold': (1, None),
+}
+
+
+def validate_tracked_items(cfg: dict) -> list[str]:
+    """驗證 tracked_items.json 欄位型別與數值，回傳錯誤訊息清單（空表示通過）。"""
+    errors = []
+    for key, types in _TRACKED_SCHEMA.items():
+        if key not in cfg:
+            errors.append(f"缺少必要欄位：{key}")
+            continue
+        if not isinstance(cfg[key], types):
+            errors.append(f"{key} 型別錯誤，應為 {types}，實際為 {type(cfg[key])}")
+    for key, (lo, hi) in _TRACKED_RANGES.items():
+        if key not in cfg or not isinstance(cfg[key], int):
+            continue
+        val = cfg[key]
+        if lo is not None and val < lo:
+            errors.append(f"{key} 值 {val} 小於最小值 {lo}")
     if 'tracked_item_classes' in cfg:
         if not cfg['tracked_item_classes']:
             errors.append("tracked_item_classes 不可為空清單")
         elif not all(isinstance(c, str) for c in cfg['tracked_item_classes']):
             errors.append("tracked_item_classes 所有元素必須為字串")
-
     if 'custom_tracked_items' in cfg:
         if not all(isinstance(i, int) for i in cfg['custom_tracked_items']):
             errors.append("custom_tracked_items 所有元素必須為整數")
-
     return errors
 
 

@@ -1,7 +1,4 @@
 {
-	"item_id_threshold": 210796,
-	"tracked_item_classes": ["交易技能", "物品附魔", "寶石", "消耗品"],
-	"custom_tracked_items": [123918, 132514],
 	"history_days": 28,
 	"price_compare_days": 7,
 	"price_drop_threshold": -10,

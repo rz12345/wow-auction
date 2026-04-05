@@ -2,6 +2,15 @@
 
 ## 核心基礎建設
 
+- [x] **分離物品 ID 設定**（2026-04-05）— 新增 `app/configs/tracked_items.json`（`item_id_threshold`、`tracked_item_classes`、`custom_tracked_items`）；`settings.json` 僅保留操作參數；`auction_controller.py` 新增 `TRACKED_ITEMS_PATH` 常數，`__init__` 分別載入兩份設定檔並各自驗證；`validators.py` 新增 `validate_tracked_items()`；`conftest.py` 新增 `TRACKED_ITEMS` fixture dict 與 `tracked_items.json` 臨時檔；`test_unit.py` 新增 8 個 `TestValidateTrackedItems` 案例；67/67 測試通過
+
+- [x] **單元測試**（2026-04-05）— 新增 `tests/test_unit.py`；40 個案例覆蓋 `validators.py`（23）、`statics_auction_records`（4）、`query_item_quality`（5）、`notify_message`（4）、`notify_telegram`（4）；全套 63 個測試全數通過
+- [x] **整合測試**（2026-04-05）— 新增 `tests/conftest.py` + `tests/test_integration.py`；23 個測試案例，外部 API 全 mock、真實 SQLite；覆蓋初始化、fetch_commodities_data、update_statics、check_cheap_goods、archive_old_files；順帶修正 df 為空時的 KeyError bug；23/23 通過
+- [x] **以 Firebase REST API 取代 firebase-admin**（2026-04-05）— 移除 `firebase-admin` 相依；改用 `AuthorizedSession` 單一快取實例（token 自動刷新）；RT DB 用 PUT/DELETE REST；Firestore 用 PATCH/GET/DELETE REST 含遞迴型別轉換；Storage 用 GCS JSON API；各方法加 timeout 與錯誤記錄
+- [x] **修正 Firebase 服務拼字錯誤**（2026-04-05）— `getDocuemnts` → `getDocuments`
+- [x] **輸入資料驗證**（2026-04-05）— 新增 `app/helpers/validators.py`：`validate_settings()` 型別/範圍檢查、`filter_valid_auction_records()` 拍賣紀錄欄位與數值驗證；pandas 處理前統一過濾非法資料；同步修正 `fetch_commodities_data` 縮排 bug
+- [x] **改善錯誤處理**（2026-04-05）— `__init__` 驗證設定檔完整性並在 token/data 為 None 時拋出 RuntimeError；各 HTTP 呼叫加 `RequestException` 防護與 timeout；JSON 讀取加 `OSError`/`JSONDecodeError`；物品欄位缺失改 WARNING 跳過；`battle_net` 與 `wow_game_data` 統一例外處理；`start.py` 捕捉初始化失敗後 `SystemExit(1)`
+- [x] **將 `print` 替換為 `logging`**（2026-04-05）— `start.py` 統一設定 logging（`logs/app.log` + console）；`auction_controller` 與 `storage_firebase` 改用 `getLogger(__name__)`；INFO / ERROR / DEBUG 分級
 - [x] **外部化硬編碼常數**（2026-04-05）— 建立 `app/configs/settings.json`；將 `item_id_threshold`、`tracked_item_classes`、`custom_tracked_items`、`history_days`、`price_compare_days`、`price_drop_threshold`、`min_gold_threshold`、`notify_batch_size` 全數移出 controller，`__init__` 載入後以 `self.*` 引用
 - [x] **新增 `requirements.txt`**（2026-04-05）— 列出所有相依套件與固定版本：pandas==2.3.3、requests==2.32.5、firebase-admin==7.3.0、gspread==2.49.1、google-auth==2.49.1、py7zr==1.1.0
 - [x] **Windows 工作排程器**（2026-04-05）— 排程建立於 `\WowAuction\WowAuctionMonitor`；每 4 小時執行 `start.py`，log 輸出至 `logs/scheduler.log`
