@@ -140,6 +140,10 @@ class AuctionController:
                     df = pd.concat([df_new, df], axis=0)
                     df.drop_duplicates(subset='id', keep='last', inplace=True)
 
+                if df.empty:
+                    logger.warning("日期 %s 無有效資料，跳過統計", date)
+                    continue
+
                 df_stat = self.statics_auction_records(df, date)
                 df_stat.to_sql('auction_statistics', conn, if_exists='append', index=False)
                 logger.info("統計完成 %s：%s", date, files_for_date)
