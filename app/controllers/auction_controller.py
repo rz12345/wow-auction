@@ -23,7 +23,7 @@ class AuctionController:
 
     def __init__(self):
         try:
-            with open(self.SETTINGS_PATH, 'r') as f:
+            with open(self.SETTINGS_PATH, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
         except FileNotFoundError:
             raise RuntimeError(f"找不到設定檔：{self.SETTINGS_PATH}")
