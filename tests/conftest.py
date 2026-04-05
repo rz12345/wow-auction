@@ -93,8 +93,16 @@ def tmp_env(tmp_path, monkeypatch):
 
     (tmp_path / 'data' / 'auction' / 'archived').mkdir(parents=True)
 
+    discord_file = tmp_path / 'discord-webhook.json'
+    discord_file.write_text(json.dumps({'webhook_url': 'https://fake-discord/webhook'}), encoding='utf-8')
+
+    telegram_file = tmp_path / 'telegram-bot.json'
+    telegram_file.write_text(json.dumps({'bot_token': 'fake_bot_token', 'chat_id': '12345'}), encoding='utf-8')
+
     monkeypatch.setattr(AuctionController, 'SETTINGS_PATH', str(settings_file))
     monkeypatch.setattr(AuctionController, 'DB_PATH', db_path)
+    monkeypatch.setattr(AuctionController, 'DISCORD_CRED_PATH', str(discord_file))
+    monkeypatch.setattr(AuctionController, 'TELEGRAM_CRED_PATH', str(telegram_file))
     monkeypatch.chdir(tmp_path)
 
     return tmp_path, db_path
