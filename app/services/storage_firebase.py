@@ -56,7 +56,7 @@ class StorageFirebase:
         return document_ids
     
     # Firebase Cloud Firestore
-    def getDocuemnts(collection_name):
+    def getDocuments(collection_name):
         # 取得當前日期
         current_date = datetime.now()
 
