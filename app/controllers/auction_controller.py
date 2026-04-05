@@ -6,10 +6,13 @@ import sqlite3
 import pandas as pd
 import os
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 import requests
 from pathlib import Path
 import py7zr
+
+logger = logging.getLogger(__name__)
 
 class AuctionController:
     DB_PATH = 'data/db.sqlite'
@@ -113,7 +116,7 @@ class AuctionController:
 
                 df_stat = self.statics_auction_records(df, date)
                 df_stat.to_sql('auction_statistics', conn, if_exists='append', index=False)
-                print(f"{date}: {files_for_date}")
+                logger.info("統計完成 %s：%s", date, files_for_date)
         
         statics_records = {}
         items_list = self.get_item_list()
@@ -321,7 +324,7 @@ class AuctionController:
                 text = '\n'.join(batch)
                 self.notify_message(text)
                 self.notify_telegram(text)
-                print(f"Processed batch: {batch}")
+                logger.debug("已發送批次通知：%s", batch)
 
     def notify_message(self, msg):
         """
@@ -404,7 +407,7 @@ class AuctionController:
             month_files.setdefault(ym, []).append(f)
 
         if not month_files:
-            print('archive_old_files: 沒有需要封存的檔案')
+            logger.info("archive_old_files: 沒有需要封存的檔案")
             return
 
         for ym, files in sorted(month_files.items()):
@@ -417,9 +420,9 @@ class AuctionController:
                             z.write(f, arcname=f.name)
                 for f in files:
                     f.unlink()
-                print(f'archive_old_files: {ym} → {archive_path.name}（{len(files)} 個檔案）')
+                logger.info("archive_old_files: %s → %s（%d 個檔案）", ym, archive_path.name, len(files))
             except Exception as e:
-                print(f'archive_old_files: {ym} 封存失敗 — {e}')
+                logger.error("archive_old_files: %s 封存失敗 — %s", ym, e)
 
     def notify_telegram(self, msg):
         """

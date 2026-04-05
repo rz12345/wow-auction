@@ -1,8 +1,11 @@
 import firebase_admin
 import json
+import logging
 from firebase_admin import credentials,storage,db,firestore
 from datetime import datetime, timedelta
 from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 class StorageFirebase:
     DATABASE_URL = 'https://jojocat-wow-f72a5-default-rtdb.asia-southeast1.firebasedatabase.app/'
@@ -74,7 +77,7 @@ class StorageFirebase:
         db = firestore.client()
         doc_ref = db.collection(collection_name).document(document_id)
         doc_ref.delete()
-        print(f"Document {document_id} deleted successfully.")
+        logger.info("Document %s deleted successfully.", document_id)
         firebase_admin.delete_app(firebase_admin.get_app())
         
     # FirebaseStorage
@@ -89,7 +92,7 @@ class StorageFirebase:
         blob.metadata = metadata
         json_data = json.dumps(dict_data)
         blob.upload_from_string(json_data, content_type = 'application/json')
-        print("JSON 檔案已上傳至 Firebase Storage")
+        logger.info("JSON 檔案已上傳至 Firebase Storage：%s", filename)
         firebase_admin.delete_app(firebase_admin.get_app())
         
     # FirebaseStorage
@@ -127,7 +130,7 @@ class StorageFirebase:
         bucket = storage.bucket()
         blob = bucket.blob(filename)
         blob.delete()
-        print(f"已成功刪除檔案：{filename}")
+        logger.info("已成功刪除檔案：%s", filename)
         firebase_admin.delete_app(firebase_admin.get_app())
         
     # FirebaseStorage
@@ -140,8 +143,8 @@ class StorageFirebase:
         # 查詢已傳送的頻寬和已儲存的位元組數
         storage_info = bucket.get_storage_class()
 
-        print("已傳送的頻寬（已使用的頻寬）：", storage_info["total"]["sent"])
-        print("已儲存的位元組數（已使用的儲存容量）：", storage_info["total"]["stored"])
+        logger.info("已傳送的頻寬（已使用的頻寬）：%s", storage_info["total"]["sent"])
+        logger.info("已儲存的位元組數（已使用的儲存容量）：%s", storage_info["total"]["stored"])
         firebase_admin.delete_app(firebase_admin.get_app())
         return storage_info
         
