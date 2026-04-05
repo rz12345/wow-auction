@@ -1,6 +1,7 @@
 from app.services.battle_net import BattleNet
 from app.services.storage_firebase import StorageFirebase
 from app.repositories.wow_game_data import WowGameData
+from app.helpers.validators import validate_settings, filter_valid_auction_records
 import re
 import sqlite3
 import pandas as pd
@@ -29,14 +30,9 @@ class AuctionController:
         except json.JSONDecodeError as e:
             raise RuntimeError(f"設定檔格式錯誤：{e}")
 
-        required_keys = [
-            'item_id_threshold', 'tracked_item_classes', 'custom_tracked_items',
-            'history_days', 'price_compare_days', 'price_drop_threshold',
-            'min_gold_threshold', 'notify_batch_size',
-        ]
-        missing = [k for k in required_keys if k not in cfg]
-        if missing:
-            raise RuntimeError(f"設定檔缺少必要欄位：{missing}")
+        errors = validate_settings(cfg)
+        if errors:
+            raise RuntimeError(f"設定檔驗證失敗：{errors}")
 
         self.item_id_threshold    = cfg['item_id_threshold']
         self.tracked_item_classes = cfg['tracked_item_classes']
@@ -135,7 +131,12 @@ class AuctionController:
                         logger.warning("快照格式不符，跳過 %s", file)
                         continue
 
-                    df_new = pd.json_normalize(json_data['auctions'])[['id', 'quantity', 'unit_price', 'time_left', 'item.id']]
+                    valid_records = filter_valid_auction_records(json_data['auctions'])
+                    if not valid_records:
+                        logger.warning("快照無有效拍賣紀錄，跳過 %s", file)
+                        continue
+
+                    df_new = pd.json_normalize(valid_records)[['id', 'quantity', 'unit_price', 'time_left', 'item.id']]
                     df = pd.concat([df_new, df], axis=0)
                     df.drop_duplicates(subset='id', keep='last', inplace=True)
 
@@ -187,32 +188,33 @@ class AuctionController:
 
         self.update_item_list()
 
-        df = pd.json_normalize(self.data['auctions'])[['id', 'quantity', 'unit_price', 'time_left', 'item.id']]
-            date = datetime.now().strftime('%Y-%m-%d')
-            df_stat = self.statics_auction_records(df, date)
-            
-            with sqlite3.connect(self.DB_PATH) as conn:
-                cur = conn.cursor()
-                cur.execute('DELETE FROM auction_statistics_realtime;')
-                cur.execute('DELETE FROM sqlite_sequence WHERE name = "auction_statistics_realtime";')
-                conn.commit()
+        valid_auctions = filter_valid_auction_records(self.data['auctions'])
+        if not valid_auctions:
+            logger.error("拍賣資料無有效紀錄，終止處理")
+            return
 
-                df_stat.to_sql('auction_statistics_realtime', conn, if_exists='append', index=False)
+        df = pd.json_normalize(valid_auctions)[['id', 'quantity', 'unit_price', 'time_left', 'item.id']]
+        date = datetime.now().strftime('%Y-%m-%d')
+        df_stat = self.statics_auction_records(df, date)
 
-                statics_records = {}
-                items_list = self.get_item_list()
-                for item in items_list:
-                    cur.execute('SELECT * FROM auction_statistics_realtime WHERE item_id IN (?)', [item])
-                    
-                    names = [desc[0] for desc in cur.description][2:]
-                    records = [row[2:] for row in cur.fetchall()]
-                    statics_records[item] = []
-                    for record in records:
-                        statics_records[item].append(dict(zip(names, record)))
+        with sqlite3.connect(self.DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute('DELETE FROM auction_statistics_realtime;')
+            cur.execute('DELETE FROM sqlite_sequence WHERE name = "auction_statistics_realtime";')
+            conn.commit()
 
-            self.update_firebase_node('/wow/auction_realtime', statics_records)
-            
-            self.check_cheap_goods()
+            df_stat.to_sql('auction_statistics_realtime', conn, if_exists='append', index=False)
+
+            statics_records = {}
+            items_list = self.get_item_list()
+            for item in items_list:
+                cur.execute('SELECT * FROM auction_statistics_realtime WHERE item_id IN (?)', [item])
+                names = [desc[0] for desc in cur.description][2:]
+                records = [row[2:] for row in cur.fetchall()]
+                statics_records[item] = [dict(zip(names, r)) for r in records]
+
+        self.update_firebase_node('/wow/auction_realtime', statics_records)
+        self.check_cheap_goods()
 
     def update_item_list(self):
         """
@@ -223,7 +225,8 @@ class AuctionController:
             cur = conn.cursor()
             cur.execute('SELECT id FROM items')
             archived_item_list = [row[0] for row in cur.fetchall()]        
-            auction_item_list = list(set([x['item']['id'] for x in self.data['auctions']]))
+            valid = filter_valid_auction_records(self.data['auctions'])
+            auction_item_list = list({x['item']['id'] for x in valid})
             list_difference = [el for el in auction_item_list if el not in archived_item_list]
             
             for item_id in list_difference:
