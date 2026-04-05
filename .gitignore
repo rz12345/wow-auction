@@ -19,4 +19,6 @@ logs/
 
 # Claude Code 本地設定
 .claude/settings.local.json
+.claude/Task.md
+.claude/Todo.md
 .observer.lock
