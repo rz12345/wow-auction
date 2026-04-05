@@ -1,0 +1,21 @@
+.ipynb_checkpoints/
+__pycache__/
+data/auction/*.json
+data/item/*.json
+data/*.json
+foo/
+
+# 憑證與機密設定（settings.json 除外）
+app/configs/
+!app/configs/settings.json
+
+# 資料庫與封存
+data/db.sqlite
+data/auction/archived/
+
+# 執行 log
+logs/
+
+# Claude Code 本地設定
+.claude/settings.local.json
+.observer.lock
