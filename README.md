@@ -85,7 +85,7 @@ wow-auction/
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | 環境建置、憑證準備、Windows 排程器、故障排查 |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | settings.json / tracked_items.json 欄位、5 份憑證範例 |
 | [docs/API-MAPPING.md](docs/API-MAPPING.md) | Battle.net 端點、Firebase 路徑、通知 payload 規格 |
-| `.claude/CLAUDE.md` | Claude Code 工作流規範（給 AI Agent 用） |
+| [CLAUDE.md](CLAUDE.md) | 專案規範與架構摘要（同時供 Claude Code Agent 參考） |
 | `.claude/Task.md` | 已完成任務歷史 |
 | `.claude/Todo.md` | 待辦項目 |
 
